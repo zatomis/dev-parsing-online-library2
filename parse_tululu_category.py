@@ -39,6 +39,12 @@ def parse_arguments():
         type=str,
         help='Указать ссылку на жанр книг',
     )
+    parser.add_argument(
+        '--page_limit',
+        default=10,
+        type=int,
+        help='Ограничить число страниц при скачивании жанра книг',
+    )
     args = parser.parse_args()
     return args
 
@@ -103,23 +109,27 @@ def download_txt(book_page_title, book_content):
         file.write(book_content)
 
 
-def get_books_by_genre(url):
+def get_books_by_genre(url, page_limit):
     url_genre_book = url
     response = requests.get(url_genre_book)
     response.raise_for_status()
     book_content = response.content
-    # print(book_content)
     soup = BeautifulSoup(book_content, 'lxml')
-    first_book = soup.find('a', class_='npage').text
-    url_book_page = urljoin(url, first_book)
-    print(url_book_page)
+    books_page = int(soup.find_all('a', class_='npage')[5].text)
+    page = 1
+    while page <= books_page:
+        url_book_page = urljoin(url, str(page))
+        print(url_book_page)
+        page += 1
+        if page > page_limit:
+            break
 
 if __name__ == '__main__':
     url = 'https://tululu.org/'
     parsed_arguments = parse_arguments()
     if parsed_arguments.genre:
         print(parsed_arguments.genre)
-        get_books_by_genre(parsed_arguments.genre)
+        get_books_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
 
     else:
         current_book_id = parsed_arguments.start_id
