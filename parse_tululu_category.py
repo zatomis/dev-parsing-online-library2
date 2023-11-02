@@ -1,3 +1,4 @@
+import logging
 import os
 import pathlib
 import sys
@@ -7,6 +8,7 @@ import argparse
 from urllib.parse import urlsplit, urljoin
 from time import sleep
 from pathvalidate import sanitize_filename
+import json
 
 
 def check_for_redirect(response):
@@ -22,18 +24,6 @@ def parse_arguments():
         description="Парсер библиотеки www.tululu.org"
     )
     parser.add_argument(
-        '--start_id',
-        default=1,
-        type=int,
-        help='Cкачивать с страницы №',
-    )
-    parser.add_argument(
-        '--end_id',
-        default=5,
-        type=int,
-        help='Остановить на странице №',
-    )
-    parser.add_argument(
         '--genre',
         default='http://tululu.org/l55/',
         type=str,
@@ -41,7 +31,7 @@ def parse_arguments():
     )
     parser.add_argument(
         '--page_limit',
-        default=10,
+        default=2,
         type=int,
         help='Ограничить число страниц при скачивании жанра книг',
     )
@@ -106,43 +96,59 @@ def download_txt(book_page_title, book_content):
     folder_name = os.path.join('books', f'{book_name}.txt')
     pathlib.Path('books').mkdir(parents=True, exist_ok=True)
     with open(folder_name, 'wb') as file:
+        logger.info(f'Загрузка - {folder_name}')
         file.write(book_content)
 
 
-def get_books_by_genre(url, page_limit):
-    url_genre_book = url
-    response = requests.get(url_genre_book)
+def get_book_id_by_genre(url, page_limit):
+    response = requests.get(url)
     response.raise_for_status()
-    book_content = response.content
-    soup = BeautifulSoup(book_content, 'lxml')
+    books_page_content = response.content
+    soup = BeautifulSoup(books_page_content, 'lxml')
     books_page = int(soup.find_all('a', class_='npage')[5].text)
+    books_id = []
     page = 1
     while page <= books_page:
         url_book_page = urljoin(url, str(page))
-        print(url_book_page)
+        response = requests.get(url_book_page)
+        response.raise_for_status()
+        books_page_content = response.content
+        soup = BeautifulSoup(books_page_content, 'lxml')
+        books = soup.find_all('div', class_='bookimage')
+        for book in books:
+            books_id.append(str(str(book).split('/b')[1]).split('/')[0])
         page += 1
         if page > page_limit:
             break
+        return books_id
 
 if __name__ == '__main__':
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(filename)s:%(lineno)d - %(levelname)-8s - %(message)s'
+    )
+
+    logger = logging.getLogger(__name__)
+
     url = 'https://tululu.org/'
     parsed_arguments = parse_arguments()
-    if parsed_arguments.genre:
-        print(parsed_arguments.genre)
-        get_books_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
+    descriptions_of_books = []
+    try:
+        books_id = get_book_id_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
+        descriptions_of_books = []
+        for book_id in books_id:
+            book_html_content, book_content, book_url = get_book_by_id(url, book_id)
+            book_properties = parse_book_page(book_html_content)
+            descriptions_of_books.append(book_properties)
+            download_txt(book_properties['title'], book_content)
+            download_image(book_url, book_properties['book_image'])
 
-    else:
-        current_book_id = parsed_arguments.start_id
-        while current_book_id <= parsed_arguments.end_id:
-            try:
-                book_html_content, book_content, book_url = get_book_by_id(url, current_book_id)
-                book_properties = parse_book_page(book_html_content)
-                download_txt(book_properties['title'], book_content)
-                download_image(book_url, book_properties['book_image'])
-                current_book_id += 1
-            except requests.exceptions.HTTPError:
-                print(f'Книга с ID {current_book_id} не существует')
-                current_book_id += 1
-            except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-                print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
-                sleep(5)
+    except requests.exceptions.HTTPError:
+        print(f'Книга с ID {book_id} не существует')
+    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+        print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
+        sleep(5)
+
+    if descriptions_of_books:
+        with open('descriptions.json', 'w') as f:
+            json.dump(descriptions_of_books, f, ensure_ascii=False)
