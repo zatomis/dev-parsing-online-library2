@@ -2,6 +2,7 @@ import logging
 import os
 import pathlib
 import sys
+from os import path
 from bs4 import BeautifulSoup
 import requests
 import argparse
@@ -24,10 +25,28 @@ def parse_arguments():
         description="Парсер библиотеки www.tululu.org"
     )
     parser.add_argument(
+        '--skip_imgs',
+        default=False,
+        type=bool,
+        help='Cкачивать картинки',
+    )
+    parser.add_argument(
+        '--skip_txt',
+        default=True,
+        type=bool,
+        help='Cкачивать книги',
+    )
+    parser.add_argument(
         '--genre',
         default='http://tululu.org/l55/',
         type=str,
         help='Указать ссылку на жанр книг',
+    )
+    parser.add_argument(
+        '--dest_folder',
+        default='General',
+        type=str,
+        help='Путь к каталогу с общими результатами парсинга: картинки, книги, JSON.',
     )
     parser.add_argument(
         '--page_limit',
@@ -83,8 +102,11 @@ def get_book_by_id(url, book_id):
     return response.text, book_content, url
 
 
-def download_image(url, book_page_image):
+def download_image(url, book_page_image, general_folder):
     img_url = urljoin(url, book_page_image)
+    if len(general_folder):
+        pathlib.Path(general_folder).mkdir(parents=True, exist_ok=True)
+        os.chdir(general_folder)
     folder_name = os.path.join('images', get_file_path(img_url))
     pathlib.Path('images').mkdir(parents=True, exist_ok=True)
     response = requests.get(img_url)
@@ -93,8 +115,11 @@ def download_image(url, book_page_image):
         file.write(response.content)
 
 
-def download_txt(book_page_title, book_content):
+def download_txt(book_page_title, book_content, general_folder):
     book_name = sanitize_filename(book_page_title).strip()
+    if len(general_folder):
+        pathlib.Path(general_folder).mkdir(parents=True, exist_ok=True)
+        os.chdir(general_folder)
     folder_name = os.path.join('books', f'{book_name}.txt')
     pathlib.Path('books').mkdir(parents=True, exist_ok=True)
     with open(folder_name, 'wb') as file:
@@ -131,9 +156,11 @@ if __name__ == '__main__':
     )
 
     logger = logging.getLogger(__name__)
+    base_dir = path.dirname(path.abspath(__file__))
 
     url = 'https://tululu.org/'
     parsed_arguments = parse_arguments()
+    general_folder = parsed_arguments.dest_folder
     descriptions_of_books = []
     try:
         books_id = get_book_id_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
@@ -142,8 +169,18 @@ if __name__ == '__main__':
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
             book_properties = parse_book_page(book_html_content)
             descriptions_of_books.append(book_properties)
-            download_txt(book_properties['title'], book_content)
-            download_image(book_url, book_properties['book_image'])
+            if (parsed_arguments.skip_txt):
+                os.chdir(base_dir)
+                download_txt(book_properties['title'], book_content, general_folder)
+            else:
+                descriptions_of_books[-1]['book_path'] = ''
+            if (parsed_arguments.skip_imgs):
+                os.chdir(base_dir)
+                download_image(book_url, book_properties['book_image'], general_folder)
+            else:
+                descriptions_of_books[-1]['book_image'] = ''
+                descriptions_of_books[-1]['img_path'] = ''
+
 
     except requests.exceptions.HTTPError:
         print(f'Книга с ID {book_id} не существует')
@@ -152,5 +189,6 @@ if __name__ == '__main__':
         sleep(5)
 
     if descriptions_of_books:
+        os.chdir(general_folder)
         with open('descriptions.json', 'w') as f:
             json.dump(descriptions_of_books, f, ensure_ascii=False)
