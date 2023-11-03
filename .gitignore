@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Папка по умолчанию в которую отрабатывает скрипт
+/General
+
 # C extensions
 *.so
 
