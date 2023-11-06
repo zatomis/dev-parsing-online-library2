@@ -136,8 +136,8 @@ def get_book_id_by_genre(url, page_limit):
     books_id = []
     page = 1
     while page <= books_page:
-        url_book_page = urljoin(url, str(page))
-        response = requests.get(url_book_page)
+        url_page_book = urljoin(url, str(page))
+        response = requests.get(url_page_book)
         response.raise_for_status()
         books_page_content = response.content
         soup = BeautifulSoup(books_page_content, 'lxml')
@@ -161,25 +161,25 @@ if __name__ == '__main__':
     url = 'https://tululu.org/'
     parsed_arguments = parse_arguments()
     general_folder = parsed_arguments.dest_folder
-    descriptions_of_books = []
+    books_descriptions = []
     try:
         books_id = get_book_id_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
-        descriptions_of_books = []
+        books_descriptions = []
         for book_id in books_id:
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
             book_properties = parse_book_page(book_html_content)
-            descriptions_of_books.append(book_properties)
+            books_descriptions.append(book_properties)
             if (parsed_arguments.skip_txt):
                 os.chdir(base_dir)
                 download_txt(book_properties['title'], book_content, general_folder)
             else:
-                descriptions_of_books[-1]['book_path'] = ''
+                books_descriptions[-1]['book_path'] = ''
             if (parsed_arguments.skip_imgs):
                 os.chdir(base_dir)
                 download_image(book_url, book_properties['book_image'], general_folder)
             else:
-                descriptions_of_books[-1]['book_image'] = ''
-                descriptions_of_books[-1]['img_path'] = ''
+                books_descriptions[-1]['book_image'] = ''
+                books_descriptions[-1]['img_path'] = ''
 
 
     except requests.exceptions.HTTPError:
@@ -188,7 +188,7 @@ if __name__ == '__main__':
         print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
         sleep(5)
 
-    if descriptions_of_books:
+    if books_descriptions:
         os.chdir(general_folder)
         with open('descriptions.json', 'w') as f:
-            json.dump(descriptions_of_books, f, ensure_ascii=False)
+            json.dump(books_descriptions, f, ensure_ascii=False)
