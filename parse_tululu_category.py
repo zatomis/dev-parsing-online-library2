@@ -139,6 +139,7 @@ def get_book_ids_by_genre(url, page_limit):
         url_page_book = urljoin(url, str(page_number))
         response = requests.get(url_page_book)
         response.raise_for_status()
+        check_for_redirect(response=response)
         books_page_content = response.content
         soup = BeautifulSoup(books_page_content, 'lxml')
         books = soup.find_all('div', class_='bookimage')
