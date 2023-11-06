@@ -75,7 +75,7 @@ def parse_book_page(html_content):
     comments = [comment.text for comment in soup.select('.texts span')]
     book_id = soup.select_one('.r_comm input[name="bookid"]')['value']
 
-    serialized_book = {
+    json_book = {
         "id": book_id,
         "title": sanitize_filename(book_name),
         "author": book_author,
@@ -85,7 +85,7 @@ def parse_book_page(html_content):
         "img_path": os.path.join('img', get_file_path(img_tag)),
         "book_path": os.path.join('books', f'{book_name.strip()}.txt')
     }
-    return serialized_book
+    return json_book
 
 
 def get_book_by_id(url, book_id):
@@ -127,27 +127,27 @@ def download_txt(book_page_title, book_content, general_folder):
         file.write(book_content)
 
 
-def get_book_id_by_genre(url, page_limit):
+def get_book_ids_by_genre(url, page_limit):
     response = requests.get(url)
     response.raise_for_status()
     books_page_content = response.content
     soup = BeautifulSoup(books_page_content, 'lxml')
     books_page = int(soup.find_all('a', class_='npage')[5].text)
-    books_id = []
-    page = 1
-    while page <= books_page:
-        url_page_book = urljoin(url, str(page))
+    book_ids = []
+    page_number = 1
+    while page_number <= books_page:
+        url_page_book = urljoin(url, str(page_number))
         response = requests.get(url_page_book)
         response.raise_for_status()
         books_page_content = response.content
         soup = BeautifulSoup(books_page_content, 'lxml')
         books = soup.find_all('div', class_='bookimage')
         for book in books:
-            books_id.append(str(str(book).split('/b')[1]).split('/')[0])
-        page += 1
-        if page > page_limit:
+            book_ids.append(str(str(book).split('/b')[1]).split('/')[0])
+        page_number += 1
+        if page_number > page_limit:
             break
-        return books_id
+        return book_ids
 
 if __name__ == '__main__':
     logging.basicConfig(
@@ -163,9 +163,9 @@ if __name__ == '__main__':
     general_folder = parsed_arguments.dest_folder
     books_descriptions = []
     try:
-        books_id = get_book_id_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
+        book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
         books_descriptions = []
-        for book_id in books_id:
+        for book_id in book_ids:
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
             book_properties = parse_book_page(book_html_content)
             books_descriptions.append(book_properties)
