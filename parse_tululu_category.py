@@ -26,14 +26,12 @@ def parse_arguments():
     )
     parser.add_argument(
         '--skip_imgs',
-        default=False,
-        type=bool,
+        action='store_false',
         help='Cкачивать картинки',
     )
     parser.add_argument(
         '--skip_txt',
-        default=True,
-        type=bool,
+        action='store_false',
         help='Cкачивать книги',
     )
     parser.add_argument(
@@ -54,12 +52,25 @@ def parse_arguments():
         type=int,
         help='Ограничить число страниц при скачивании жанра книг',
     )
+    parser.add_argument(
+        '--start_page',
+        default=1,
+        type=int,
+        help='Начальная страница для скачиваний',
+    )
+    parser.add_argument(
+        '--end_page',
+        default=2,
+        type=int,
+        help='Финальная страница для скачиваний',
+    )
     args = parser.parse_args()
     return args
 
 
 def get_file_path(url):
     path, filename = os.path.split(urlsplit(url).path)
+    logger.info(f"{path}  {filename}")
     return filename
 
 
@@ -68,9 +79,7 @@ def parse_book_page(html_content):
     title_tag = soup.find('td', class_='ow_px_td').find('div').find('h1').text.split('::')
     book_name = str(title_tag[0]).replace('\\xa0', ' ').strip()
     book_author = str(title_tag[1]).replace('\\xa0', ' ').strip()
-    # img_tag = soup.find('div', class_='bookimage').find('img')['src']
     img_tag = soup.select_one('div.bookimage').find('img')['src']
-    # genre_tag = soup.find('span', class_='d_book').find('a')['title']
     genre_tag = soup.select_one('span.d_book a')['title']
     comments = [comment.text for comment in soup.select('.texts span')]
     book_id = soup.select_one('.r_comm input[name="bookid"]')['value']
@@ -82,7 +91,7 @@ def parse_book_page(html_content):
         "comments": comments,
         "book_image": img_tag,
         "genre": genre_tag,
-        "img_path": os.path.join('img', get_file_path(img_tag)),
+        "img_path": os.path.join('images', get_file_path(img_tag)),
         "book_path": os.path.join('books', f'{book_name.strip()}.txt')
     }
     return json_book
@@ -104,11 +113,8 @@ def get_book_by_id(url, book_id):
 
 def download_image(url, book_page_image, general_folder):
     img_url = urljoin(url, book_page_image)
-    if len(general_folder):
-        pathlib.Path(general_folder).mkdir(parents=True, exist_ok=True)
-        os.chdir(general_folder)
-    folder_name = os.path.join('images', get_file_path(img_url))
-    pathlib.Path('images').mkdir(parents=True, exist_ok=True)
+    folder_name = os.path.join(os.path.join(general_folder, 'images'), get_file_path(img_url))
+    pathlib.Path(os.path.join(general_folder, 'images')).mkdir(parents=True, exist_ok=True)
     response = requests.get(img_url)
     response.raise_for_status()
     with open(folder_name, 'wb') as file:
@@ -117,29 +123,27 @@ def download_image(url, book_page_image, general_folder):
 
 def download_txt(book_page_title, book_content, general_folder):
     book_name = sanitize_filename(book_page_title).strip()
-    if len(general_folder):
-        pathlib.Path(general_folder).mkdir(parents=True, exist_ok=True)
-        os.chdir(general_folder)
-    folder_name = os.path.join('books', f'{book_name}.txt')
-    pathlib.Path('books').mkdir(parents=True, exist_ok=True)
+    folder_name = os.path.join(os.path.join(general_folder, 'books'), f'{book_name}.txt')
+    pathlib.Path(os.path.join(general_folder, 'books')).mkdir(parents=True, exist_ok=True)
     with open(folder_name, 'wb') as file:
-        logger.info(f'Загрузка - {folder_name}')
         file.write(book_content)
 
 
-def get_book_ids_by_genre(url, page_limit):
+def get_book_ids_by_genre(url, start_page, end_page, page_limit):
     response = requests.get(url)
     response.raise_for_status()
     books_page_content = response.content
     soup = BeautifulSoup(books_page_content, 'lxml')
     books_page = int(soup.find_all('a', class_='npage')[5].text)
     book_ids = []
-    page_number = 1
-    while page_number <= books_page:
-        url_page_book = urljoin(url, str(page_number))
+    page_number = start_page
+    total_page = books_page if end_page>books_page else end_page
+    while page_number <= total_page:
+        url_page_book = urljoin(url, f"{page_number}/")
         response = requests.get(url_page_book)
         response.raise_for_status()
-        check_for_redirect(response=response)
+        # check_for_redirect(response=response)
+
         books_page_content = response.content
         soup = BeautifulSoup(books_page_content, 'lxml')
         books = soup.find_all('div', class_='bookimage')
@@ -149,6 +153,7 @@ def get_book_ids_by_genre(url, page_limit):
         if page_number > page_limit:
             break
         return book_ids
+
 
 if __name__ == '__main__':
     logging.basicConfig(
@@ -163,33 +168,31 @@ if __name__ == '__main__':
     parsed_arguments = parse_arguments()
     general_folder = parsed_arguments.dest_folder
     books_descriptions = []
-    try:
-        book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.page_limit)
-        books_descriptions = []
-        for book_id in book_ids:
+    book_id = 0
+    book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.start_page, parsed_arguments.end_page, parsed_arguments.page_limit)
+    books_descriptions = []
+    for book_id in book_ids:
+        try:
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
+        except requests.exceptions.HTTPError:
+            print(f'Книга с ID {book_id} не существует')
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+            print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
+            sleep(5)
+        else:
             book_properties = parse_book_page(book_html_content)
             books_descriptions.append(book_properties)
-            if (parsed_arguments.skip_txt):
-                os.chdir(base_dir)
+
+            if parsed_arguments.skip_txt:
                 download_txt(book_properties['title'], book_content, general_folder)
             else:
                 books_descriptions[-1]['book_path'] = ''
-            if (parsed_arguments.skip_imgs):
-                os.chdir(base_dir)
+            if parsed_arguments.skip_imgs:
                 download_image(book_url, book_properties['book_image'], general_folder)
             else:
                 books_descriptions[-1]['book_image'] = ''
                 books_descriptions[-1]['img_path'] = ''
 
-
-    except requests.exceptions.HTTPError:
-        print(f'Книга с ID {book_id} не существует')
-    except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-        print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
-        sleep(5)
-
     if books_descriptions:
-        os.chdir(general_folder)
-        with open('descriptions.json', 'w') as f:
+        with open(os.path.join(general_folder, 'descriptions.json'), 'w') as f:
             json.dump(books_descriptions, f, ensure_ascii=False)
