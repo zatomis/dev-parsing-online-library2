@@ -13,11 +13,17 @@ import json
 
 
 def check_for_redirect(response):
-    """
-    Поднимает исключение HTTPError, если ответ с не запрашиваемой страницы.
-    """
+    """ Поднимает исключение HTTPError, если нет ответа с запрашиваемой страницы. """
     if response.history:
         raise requests.HTTPError
+
+
+def get_books_content(url, page_number):
+    url_page_book = urljoin(url, f"{page_number}/")
+    response = requests.get(url_page_book)
+    response.raise_for_status()
+    # check_for_redirect(response=response)
+    return response.content
 
 
 def parse_arguments():
@@ -136,28 +142,24 @@ def get_total_pages(url):
     return int(soup.find_all('a', class_='npage')[5].text)
 
 
-def get_books_content(url, page_number):
-    url_page_book = urljoin(url, f"{page_number}/")
-    response = requests.get(url_page_book)
-    response.raise_for_status()
-    # check_for_redirect(response=response)
-    return response.content
-
-
 def get_book_ids_by_genre(url, start_page, end_page, page_limit):
     books_page = get_total_pages(url)
     book_ids = []
     page_number = start_page
     total_page = books_page if end_page > books_page else end_page
     while page_number <= total_page:
-        books_page_content = get_books_content(url, page_number)
-        soup = BeautifulSoup(books_page_content, 'lxml')
-        books = soup.find_all('div', class_='bookimage')
-        for book in books:
-            book_ids.append(str(str(book).split('/b')[1]).split('/')[0])
-        page_number += 1
-        if page_number > page_limit:
-            break
+        try:
+            books_page_content = get_books_content(url, page_number)
+        except requests.exceptions.HTTPError:
+            print(f'Страница с книгами {book_id} не существует')
+        else:
+            soup = BeautifulSoup(books_page_content, 'lxml')
+            books = soup.find_all('div', class_='bookimage')
+            for book in books:
+                book_ids.append(str(str(book).split('/b')[1]).split('/')[0])
+            page_number += 1
+            if page_number > page_limit:
+                break
         return book_ids
 
 
