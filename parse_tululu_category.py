@@ -129,22 +129,28 @@ def download_txt(book_page_title, book_content, general_folder):
         file.write(book_content)
 
 
-def get_book_ids_by_genre(url, start_page, end_page, page_limit):
+def get_total_pages(url):
     response = requests.get(url)
     response.raise_for_status()
-    books_page_content = response.content
-    soup = BeautifulSoup(books_page_content, 'lxml')
-    books_page = int(soup.find_all('a', class_='npage')[5].text)
+    soup = BeautifulSoup(response.content, 'lxml')
+    return int(soup.find_all('a', class_='npage')[5].text)
+
+
+def get_books_content(url, page_number):
+    url_page_book = urljoin(url, f"{page_number}/")
+    response = requests.get(url_page_book)
+    response.raise_for_status()
+    # check_for_redirect(response=response)
+    return response.content
+
+
+def get_book_ids_by_genre(url, start_page, end_page, page_limit):
+    books_page = get_total_pages(url)
     book_ids = []
     page_number = start_page
-    total_page = books_page if end_page>books_page else end_page
+    total_page = books_page if end_page > books_page else end_page
     while page_number <= total_page:
-        url_page_book = urljoin(url, f"{page_number}/")
-        response = requests.get(url_page_book)
-        response.raise_for_status()
-        # check_for_redirect(response=response)
-
-        books_page_content = response.content
+        books_page_content = get_books_content(url, page_number)
         soup = BeautifulSoup(books_page_content, 'lxml')
         books = soup.find_all('div', class_='bookimage')
         for book in books:
@@ -170,7 +176,6 @@ if __name__ == '__main__':
     books_descriptions = []
     book_id = 0
     book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.start_page, parsed_arguments.end_page, parsed_arguments.page_limit)
-    books_descriptions = []
     for book_id in book_ids:
         try:
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
