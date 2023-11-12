@@ -22,7 +22,6 @@ def get_books_content(url, page_number):
     url_page_book = urljoin(url, f"{page_number}/")
     response = requests.get(url_page_book)
     response.raise_for_status()
-    # check_for_redirect(response=response)
     return response.content
 
 
