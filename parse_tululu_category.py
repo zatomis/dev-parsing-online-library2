@@ -32,12 +32,12 @@ def parse_arguments():
     )
     parser.add_argument(
         '--skip_imgs',
-        action='store_false',
+        action='store_true',
         help='Cкачивать картинки',
     )
     parser.add_argument(
         '--skip_txt',
-        action='store_false',
+        action='store_true',
         help='Cкачивать книги',
     )
     parser.add_argument(
@@ -190,16 +190,17 @@ if __name__ == '__main__':
             book_properties = parse_book_page(book_html_content)
             books_descriptions.append(book_properties)
 
-            if parsed_arguments.skip_txt:
+            if not parsed_arguments.skip_txt:
                 download_txt(book_properties['title'], book_content, general_folder)
             else:
                 books_descriptions[-1]['book_path'] = ''
-            if parsed_arguments.skip_imgs:
+            if not parsed_arguments.skip_imgs:
                 download_image(book_url, book_properties['book_image'], general_folder)
             else:
                 books_descriptions[-1]['book_image'] = ''
                 books_descriptions[-1]['img_path'] = ''
 
     if books_descriptions:
+        pathlib.Path(general_folder).mkdir(parents=True, exist_ok=True)
         with open(os.path.join(general_folder, 'descriptions.json'), 'w') as f:
             json.dump(books_descriptions, f, ensure_ascii=False)
