@@ -114,8 +114,8 @@ def get_book_by_id(url, book_id):
     return response.text, book_content, url
 
 
-def download_image(url, book_page_image, general_folder):
-    img_url = urljoin(url, book_page_image)
+def download_image(url, path_to_the_image, general_folder):
+    img_url = urljoin(url, path_to_the_image)
     folder_name = os.path.join(os.path.join(general_folder, 'images'), get_file_path(img_url))
     pathlib.Path(os.path.join(general_folder, 'images')).mkdir(parents=True, exist_ok=True)
     response = requests.get(img_url)
@@ -151,6 +151,9 @@ def get_book_ids_by_genre(url, start_page, end_page):
             books_page_content = get_books_content(url, page_number)
         except requests.exceptions.HTTPError:
             print(f'Страница с книгами {book_id} не существует')
+        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+            print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
+            sleep(5)
         else:
             soup = BeautifulSoup(books_page_content, 'lxml')
             books = soup.find_all('div', class_='bookimage')
