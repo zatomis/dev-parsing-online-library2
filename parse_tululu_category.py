@@ -90,7 +90,7 @@ def parse_book_page(html_content):
     comments = [comment.text for comment in soup.select('.texts span')]
     book_id = soup.select_one('.r_comm input[name="bookid"]')['value']
 
-    json_book = {
+    book_details = {
         "id": book_id,
         "title": sanitize_filename(book_name),
         "author": book_author,
@@ -100,7 +100,7 @@ def parse_book_page(html_content):
         "img_path": os.path.join('images', get_file_path(img_tag)),
         "book_path": os.path.join('books', f'{book_name.strip()}.txt')
     }
-    return json_book
+    return book_details
 
 
 def get_book_by_id(url, book_id):
