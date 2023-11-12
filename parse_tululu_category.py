@@ -52,12 +52,6 @@ def parse_arguments():
         help='Путь к каталогу с общими результатами парсинга: картинки, книги, JSON.',
     )
     parser.add_argument(
-        '--page_limit',
-        default=2,
-        type=int,
-        help='Ограничить число страниц при скачивании жанра книг',
-    )
-    parser.add_argument(
         '--start_page',
         default=1,
         type=int,
@@ -145,11 +139,13 @@ def get_total_pages(url):
     return int(soup.find_all('a', class_='npage')[5].text)
 
 
-def get_book_ids_by_genre(url, start_page, end_page, page_limit):
+def get_book_ids_by_genre(url, start_page, end_page):
     books_page = get_total_pages(url)
     book_ids = []
     page_number = start_page
-    total_page = books_page if end_page > books_page else end_page
+    # total_page = books_page if end_page > books_page else end_page
+    total_page = min(books_page, end_page)
+
     while page_number <= total_page:
         try:
             books_page_content = get_books_content(url, page_number)
@@ -161,8 +157,6 @@ def get_book_ids_by_genre(url, start_page, end_page, page_limit):
             for book in books:
                 book_ids.append(str(str(book).split('/b')[1]).split('/')[0])
             page_number += 1
-            if page_number > page_limit:
-                break
         return book_ids
 
 
@@ -180,7 +174,7 @@ if __name__ == '__main__':
     general_folder = parsed_arguments.dest_folder
     books_descriptions = []
     book_id = 0
-    book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.start_page, parsed_arguments.end_page, parsed_arguments.page_limit)
+    book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.start_page, parsed_arguments.end_page)
     for book_id in book_ids:
         try:
             book_html_content, book_content, book_url = get_book_by_id(url, book_id)
