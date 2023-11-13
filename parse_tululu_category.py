@@ -18,13 +18,6 @@ def check_for_redirect(response):
         raise requests.HTTPError
 
 
-def get_books_content(url, page_number):
-    url_page_book = urljoin(url, f"{page_number}/")
-    response = requests.get(url_page_book)
-    response.raise_for_status()
-    return response.content
-
-
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Парсер библиотеки www.tululu.org"
@@ -96,16 +89,27 @@ def parse_book_page(html_content):
     return book_details
 
 
-def get_book_content(url, id):
-    url_book = f"{url}txt.php"
-    params = {'id': id}
-    response = requests.get(url_book, params)
-    response.raise_for_status()
-    return response.content, response
+def get_content(url, id, url_type=False):
+    """
+        :param url:
+        :param id:
+        :param url_type: флаг - книга или страница
+    """
+    if not url_type:
+        url_book = f"{url}txt.php"
+        params = {'id': id}
+        response = requests.get(url_book, params)
+        response.raise_for_status()
+        return response.content, response
+    else:
+        url_page_book = urljoin(url, f"{id}/")
+        response = requests.get(url_page_book)
+        response.raise_for_status()
+        return response.content
 
 
 def get_book_by_id(url, book_id):
-    book_content, response = get_book_content(url, book_id)
+    book_content, response = get_content(url, book_id, False)
     check_for_redirect(response=response)
     url = f"{url}b{book_id}/"
     response = requests.get(url)
@@ -146,7 +150,7 @@ def get_book_ids_by_genre(url, start_page, end_page):
     total_page = min(books_page, end_page)
     while page_number <= total_page:
         try:
-            books_page_content = get_books_content(url, page_number)
+            books_page_content = get_content(url, page_number, True)
         except requests.exceptions.HTTPError:
             print(f'Страница с книгами {book_id} не существует')
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
@@ -156,7 +160,9 @@ def get_book_ids_by_genre(url, start_page, end_page):
             soup = BeautifulSoup(books_page_content, 'lxml')
             books = soup.find_all('div', class_='bookimage')
             for book in books:
-                book_ids.append(str(str(book).split('/b')[1]).split('/')[0])
+                book_tag = str(book).split('/b')[1]
+                book_id = book_tag.split('/')[0]
+                book_ids.append(book_id)
             page_number += 1
         return book_ids
 
