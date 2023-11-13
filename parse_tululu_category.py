@@ -143,9 +143,7 @@ def get_book_ids_by_genre(url, start_page, end_page):
     books_page = get_total_pages(url)
     book_ids = []
     page_number = start_page
-    # total_page = books_page if end_page > books_page else end_page
     total_page = min(books_page, end_page)
-
     while page_number <= total_page:
         try:
             books_page_content = get_books_content(url, page_number)
