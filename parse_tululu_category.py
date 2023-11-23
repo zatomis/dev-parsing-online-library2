@@ -62,7 +62,6 @@ def parse_arguments():
 
 def get_file_path(url):
     path, filename = os.path.split(urlsplit(url).path)
-    logger.info(f"{path}  {filename}")
     return filename
 
 
@@ -152,7 +151,7 @@ def get_book_ids_by_genre(url, start_page, end_page):
         try:
             books_page_content = get_content(url, page_number, True)
         except requests.exceptions.HTTPError:
-            print(f'Страница с книгами {book_id} не существует')
+            print(f'Страница с книгой не существует')
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
             print("Отсутствие соединения, ожидание 5сек...", file=sys.stderr)
             sleep(5)
