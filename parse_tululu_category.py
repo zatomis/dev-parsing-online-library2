@@ -88,27 +88,12 @@ def parse_book_page(html_content):
     return book_details
 
 
-def get_content(url, id, url_type=False):
-    """
-        :param url:
-        :param id:
-        :param url_type: флаг - книга или страница
-    """
-    if not url_type:
-        url_book = f"{url}txt.php"
-        params = {'id': id}
-        response = requests.get(url_book, params)
-        response.raise_for_status()
-        return response.content, response
-    else:
-        url_page_book = urljoin(url, f"{id}/")
-        response = requests.get(url_page_book)
-        response.raise_for_status()
-        return response.content
-
-
 def get_book_by_id(url, book_id):
-    book_content, response = get_content(url, book_id, False)
+    url_book = f"{url}txt.php"
+    params = {'id': book_id}
+    response = requests.get(url_book, params)
+    response.raise_for_status()
+    book_content = response.content
     check_for_redirect(response=response)
     url = f"{url}b{book_id}/"
     response = requests.get(url)
@@ -149,7 +134,10 @@ def get_book_ids_by_genre(url, start_page, end_page):
     total_page = min(books_page, end_page)
     while page_number <= total_page:
         try:
-            books_page_content = get_content(url, page_number, True)
+            url_page_book = urljoin(url, f"{page_number}/")
+            response = requests.get(url_page_book)
+            response.raise_for_status()
+            books_page_content = response.content
         except requests.exceptions.HTTPError:
             print(f'Страница с книгой не существует')
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
