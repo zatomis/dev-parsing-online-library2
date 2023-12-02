@@ -88,20 +88,6 @@ def parse_book_page(html_content):
     return book_details
 
 
-def get_book_by_id(url, book_id):
-    url_book = f"{url}txt.php"
-    params = {'id': book_id}
-    response = requests.get(url_book, params)
-    response.raise_for_status()
-    book_content = response.content
-    check_for_redirect(response=response)
-    url = f"{url}b{book_id}/"
-    response = requests.get(url)
-    response.raise_for_status()
-    check_for_redirect(response=response)
-    return response.text, book_content, url
-
-
 def download_image(url, path_to_the_image, general_folder):
     img_url = urljoin(url, path_to_the_image)
     folder_name = os.path.join(os.path.join(general_folder, 'images'), get_file_path(img_url))
@@ -171,7 +157,19 @@ if __name__ == '__main__':
     book_ids = get_book_ids_by_genre(parsed_arguments.genre, parsed_arguments.start_page, parsed_arguments.end_page)
     for book_id in book_ids:
         try:
-            book_html_content, book_content, book_url = get_book_by_id(url, book_id)
+            url_book = f"{url}txt.php"
+            params = {'id': book_id}
+            response = requests.get(url_book, params)
+            response.raise_for_status()
+            book_content = response.content
+            check_for_redirect(response=response)
+
+            book_url = f"{url}b{book_id}/"
+            response = requests.get(book_url)
+            response.raise_for_status()
+            check_for_redirect(response=response)
+            book_html_content = response.text
+
         except requests.exceptions.HTTPError:
             print(f'Книга с ID {book_id} не существует')
         except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
